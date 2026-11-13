@@ -109,9 +109,34 @@ function pixel(x, y) {
   const rim = smooth(10, 0, Math.abs(dist - DISC_R)) * (1 - inside);
   col = mix3(col, [30, 10, 54], rim * 0.6);
 
+  // A comet slashes the upper-left sky: a bright head on a fixed
+  // diagonal with a tapering tail that fades along its length.
+  const cometT = clamp(((x - 128) * 0.82 + (y - 118) * 0.57) / 250, 0, 1);
+  const cometPx = 128 + cometT * 205;
+  const cometPy = 118 + cometT * 143;
+  const cometD = Math.hypot(x - cometPx, y - cometPy);
+  const cometTail = (1 - cometT) * smooth(26, 0, cometD);
+  col = mix3(col, [168, 220, 255], cometTail * 0.5);
+  const cometHead = smooth(7, 0, Math.hypot(x - 333, y - 261));
+  col = mix3(col, [240, 250, 255], cometHead * 0.95);
+
+  // A small flock crosses the face of the eclipse. Each bird is two
+  // shallow arcs meeting at its body centre, drawn as a dark mark
+  // whose wings rise away from the centre point on both sides.
+  const birds = [
+    [438, 352, 15], [486, 322, 11], [404, 318, 9], [522, 372, 8],
+    [462, 392, 7], [350, 372, 10],
+  ];
+  for (const [bx, by, s] of birds) {
+    const bdx = x - bx;
+    const bdy = y - by + Math.abs(bdx) * 0.42;
+    const bd = Math.hypot(bdx * (18 / s), bdy * 3.1);
+    const bird = smooth(9, 3.5, bd) * smooth(s + 6, s - 4, Math.abs(bdx));
+    col = mix3(col, [8, 6, 18], bird * 0.92);
+  }
+
   // Three ridge silhouettes marching toward the viewer.
   const far = ridgeY(x, 648, 26, 0.004, 1.7, 12, 0.013, 4.1);
-  if (y > far) col = mix3(RIDGE_FAR, col, smooth(far, far + 3, y) * 0);
   if (y > far) col = RIDGE_FAR.slice();
   const mid = ridgeY(x, 724, 30, 0.003, 5.2, 14, 0.011, 0.6);
   if (y > mid) col = RIDGE_MID.slice();
@@ -123,6 +148,35 @@ function pixel(x, y) {
   const eMid = smooth(3.2, 0, Math.abs(y - mid));
   const eNear = smooth(3.2, 0, Math.abs(y - near));
   col = mix3(col, CORONA_MID, eFar * 0.55 + eMid * 0.4 + eNear * 0.3);
+
+  // A lighthouse stands on the near ridge at the right, its lamp lit.
+  // The tower is a tapering dark column; a soft beam leans out of the
+  // lamp toward the eclipse, widening and fading with distance.
+  const LH_X = 838;
+  const LH_TOP = 690;
+  const LH_BASE = 822;
+  if (y >= LH_TOP && y <= LH_BASE) {
+    const lt = (y - LH_TOP) / (LH_BASE - LH_TOP);
+    const halfW = mix(7, 15, lt);
+    if (Math.abs(x - LH_X) < halfW) col = [10, 8, 26];
+    if (y > LH_TOP + 16 && y < LH_TOP + 30 && Math.abs(x - LH_X) < 5) {
+      col = CORONA_HOT.slice();
+    }
+  }
+  if (y >= LH_TOP - 10 && y <= LH_TOP + 2 && Math.abs(x - LH_X) < 11) {
+    col = [10, 8, 26];
+  }
+  const lampGlow = Math.exp(-Math.hypot(x - LH_X, y - (LH_TOP + 23)) / 26);
+  col = mix3(col, CORONA_HOT, clamp(lampGlow * 0.75, 0, 0.8));
+  // Beam: distance travelled left from the lamp, spread grows along it.
+  const beamRun = LH_X - x;
+  if (beamRun > 0 && x > 470) {
+    const beamCentreY = LH_TOP + 23 - beamRun * 0.16;
+    const beamHalf = 6 + beamRun * 0.075;
+    const inBeam = smooth(beamHalf, beamHalf * 0.25, Math.abs(y - beamCentreY));
+    const beamFade = Math.exp(-beamRun / 330);
+    col = mix3(col, [255, 214, 140], inBeam * beamFade * 0.30);
+  }
 
   // The tide: below the near ridge the scene becomes open water.
   const SEA_Y = 858;
